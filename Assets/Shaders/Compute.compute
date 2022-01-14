@@ -1,0 +1,109 @@
+﻿#pragma kernel Snow
+#pragma kernel SetSnow
+
+RWTexture2D<float4> inTexture;
+Texture2D<float4> normalMap;
+
+float precipitation;
+float lastSnowfall;
+float albedo;
+
+float airTemp;
+float rainTemp;
+float meltTemp;
+
+float cellArea;
+
+float Ri;
+float Cm;
+float M;
+
+float t;
+float d;
+
+[numthreads(8, 8, 1)]
+void Snow(uint3 id : SV_DispatchThreadID)
+{
+    float swe = inTexture[id.xy].r;
+
+    ///SNOWFALL///
+    if (precipitation > 0)
+    {
+        lastSnowfall = 0;
+
+        if (airTemp > rainTemp)
+        {
+            albedo = 0.4f;
+        }
+        else
+        {
+            swe = swe + (precipitation * cellArea);
+        }
+    }
+    
+    ///SNOWMELT AND WIND///
+    if (swe > 0)
+    {
+        if (lastSnowfall >= 0)
+        {
+            albedo = 0.4f * (1 + exp(0.2 * lastSnowfall));
+        }
+        if (airTemp > meltTemp)
+        {
+            Ri = ((3.14159f * Ri) / 2) * sin((3.14159f * (t % d)) / d);
+
+            Cm = Ri * (1.0f - albedo);
+            M = Cm * (airTemp - meltTemp);
+            
+            swe = swe - M;
+
+            ///WIND///
+            //Calculates Slope
+            float4 map = normalMap[id.xy];
+            float3 normal = (map.x, map.y, map.z);
+
+            float3 vec = { 0.0f, 1.0f, 0.0f };
+            float slope = dot(normal.rgb, vec);
+            slope = 90.0f - (slope * 57.2957795f);
+
+            //Converts slope to its impact on snow cover
+            if (slope < 10.0f)
+            {
+                slope = 0.0f;
+            }
+            else
+            {
+                slope = slope / 60.0f;
+            }
+            
+            swe = swe * (1.0f - slope) * (1.0f + 0.55f * 2.0f);
+        }
+    }
+    inTexture[id.xy] = swe;
+}
+
+///Sets the value of the snowcover at start
+[numthreads(8, 8, 1)]
+void SetSnow(uint3 id : SV_DispatchThreadID)
+{
+    float4 map = normalMap[id.xy];
+    float3 normal = (map.x, map.y, map.z);
+
+    //Calculates Slope
+    float3 vec = {0.0f, 1.0f, 0.0f };
+    float slope = dot(normal.rgb, vec);
+    slope = 90.0f - (slope * 57.2957795f); 
+    
+    //Converts slope to its impact on snow cover
+    if (slope < 10.0f)
+    {
+        slope = 0.0f;
+    }
+    else
+    {
+        slope = slope / 60.0f;
+    }
+
+    float swe = (0.5f + 0.001 * 1000.0f) * (1.0f - slope) * (1.0f + 0.5f * 0.0f);
+    inTexture[id.xy] = swe;
+}
