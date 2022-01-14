@@ -58,3 +58,7 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
+# Project Test result files
+avg.txt
+best.txt
+worst.txt
